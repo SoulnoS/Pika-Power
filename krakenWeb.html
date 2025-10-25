@@ -29,11 +29,9 @@
       height: 100%;
       object-fit: cover;
       opacity: 0;
-      transition: opacity .4s ease;
+      transition: opacity 2.5s ease; /* longer fade between GIFs */
     }
-    .carousel img.active {
-      opacity: 1;
-    }
+    .carousel img.active { opacity: 1; }
 
     /* Temp overlay: bottom-center (90%) */
     .overlay {
@@ -45,7 +43,7 @@
       background: rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(4px);
       border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255,255,255,0.15);
       font-weight: 600;
       letter-spacing: 0.3px;
       display: inline-flex;
@@ -53,32 +51,11 @@
       gap: 8px;
       z-index: 5;
     }
-    .overlay .value {
-      font-size: 48px;
-      line-height: 1;
-    }
+    .overlay .value { font-size: 48px; line-height: 1; }
     .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #9ef89e;
-      opacity: .85;
-      align-self: center;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #9ef89e; opacity: .85; align-self: center;
       transition: opacity .3s ease;
-    }
-
-    /* Centered debug text */
-    #nzxtStatus {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font: 16px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;
-      color: #9ef89e;
-      text-align: center;
-      white-space: pre-wrap;
-      max-width: 90vw;
-      opacity: .9;
     }
   </style>
 </head>
@@ -88,7 +65,6 @@
     <span class="value" id="tempVal">--°C</span>
     <span class="dot" id="tick"></span>
   </div>
-  <div id="nzxtStatus">Waiting for NZXT…</div>
 
   <script>
     // ---------- 1) GIF playlist + rotation ----------
@@ -123,6 +99,7 @@
       car.appendChild(el);
       return el;
     });
+
     let idx = 0;
     if (imgs.length > 1) {
       setInterval(() => {
@@ -134,18 +111,20 @@
       }, INTERVAL * 1000);
     }
 
-    // ---------- 2) Temp handling (with NZXT bridge) ----------
+    // ---------- 2) Temperature reading ----------
     const tempVal = document.getElementById('tempVal');
     const tick = document.getElementById('tick');
-    const statEl = document.getElementById('nzxtStatus');
+
+    // 10-sample moving average
     const buf = [];
-    const N = 5;
+    const N = 10;
     const avgPush = (x) => {
       if (typeof x !== 'number' || !isFinite(x)) return null;
       buf.push(x);
       if (buf.length > N) buf.shift();
       return buf.reduce((a, b) => a + b, 0) / buf.length;
     };
+
     const pickTempC = (d) => {
       const c = [
         d?.cpu?.package?.temperature,
@@ -158,30 +137,22 @@
     };
 
     function onData(data) {
-      if (!data || typeof data !== 'object') {
-        statEl.textContent = 'Received empty data';
-        return;
-      }
       const avg = avgPush(pickTempC(data));
       tempVal.textContent = avg == null ? '--°C' : `${Math.round(avg)}\u00B0C`;
       tick.style.opacity = tick.style.opacity === '0.35' ? '0.85' : '0.35';
-      statEl.textContent = 'Receiving NZXT data';
     }
 
-    // Pre-register handlers before CAM injects
+    // Pre-register for NZXT injection (works with CAM when loaded in Web Integration)
     window.nzxt = window.nzxt || {};
     window.nzxt.v1 = window.nzxt.v1 || {};
     window.nzxt.v1.onMonitoringDataUpdate = onData;
     if (!('onMonitoringDataUpdate' in window)) {
-      window.onMonitoringDataUpdate = onData;
+      window.onMonitoringDataUpdate = onData; // legacy path
     }
 
-    // Reattach if CAM overwrites after load
+    // Reattach if CAM redefines object post-load
     window.addEventListener('nzxt', () => {
-      try {
-        if (window.nzxt?.v1)
-          window.nzxt.v1.onMonitoringDataUpdate = onData;
-      } catch {}
+      try { if (window.nzxt?.v1) window.nzxt.v1.onMonitoringDataUpdate = onData; } catch {}
     });
   </script>
 </body>
