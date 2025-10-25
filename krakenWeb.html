@@ -3,27 +3,91 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- NZXT injector hint -->
   <meta name="nzxt-version" content="1" />
   <title>Pika Power — NZXT Kraken</title>
   <style>
-    html, body { margin:0; height:100%; width:100%; background:#000; color:#fff;
-      font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; overflow:hidden; }
-    .carousel { position:absolute; inset:0; display:grid; place-items:center;
-      background:radial-gradient(circle at 50% 50%, #0b0b0b 0%, #000 70%); }
-    .carousel img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
-      opacity:0; transition:opacity .4s ease; }
-    .carousel img.active { opacity:1; }
-    .temp { position:absolute; left:50%; top:90%; transform:translate(-50%,-50%);
-      font-size:64px; font-weight:800; text-shadow:0 0 10px rgba(0,0,0,.6); }
-    #nzxtStatus { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-      font:16px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;
-      color:#9ef89e; text-align:center; white-space:pre-wrap; max-width:90vw; opacity:.9; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      width: 100%;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial;
+      overflow: hidden;
+    }
+    .carousel {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 50%, #0b0b0b 0%, #000 70%);
+    }
+    .carousel img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity .4s ease;
+    }
+    .carousel img.active {
+      opacity: 1;
+    }
+
+    /* Temp overlay: bottom-center (90%) */
+    .overlay {
+      position: absolute;
+      top: 90%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 12px 20px;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(4px);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+      z-index: 5;
+    }
+    .overlay .value {
+      font-size: 48px;
+      line-height: 1;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9ef89e;
+      opacity: .85;
+      align-self: center;
+      transition: opacity .3s ease;
+    }
+
+    /* Centered debug text */
+    #nzxtStatus {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font: 16px/1.4 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;
+      color: #9ef89e;
+      text-align: center;
+      white-space: pre-wrap;
+      max-width: 90vw;
+      opacity: .9;
+    }
   </style>
 </head>
 <body>
   <div id="carousel" class="carousel"></div>
-  <div id="temp" class="temp">--°C</div>
+  <div class="overlay" id="temp">
+    <span class="value" id="tempVal">--°C</span>
+    <span class="dot" id="tick"></span>
+  </div>
   <div id="nzxtStatus">Waiting for NZXT…</div>
 
   <script>
@@ -51,56 +115,72 @@
     ]).filter(Boolean);
 
     const car = document.getElementById('carousel');
-    const imgs = GIFS.map((src,i)=>{ const el=document.createElement('img'); el.src=src.trim();
-      if(i===0) el.classList.add('active'); el.addEventListener('error',()=>el.remove());
-      car.appendChild(el); return el; });
-    let idx=0; if(imgs.length>1){ setInterval(()=>{ const a=imgs[idx]; idx=(idx+1)%imgs.length;
-      const b=imgs[idx]; a&&a.classList.remove('active'); b&&b.classList.add('active'); }, INTERVAL*1000); }
+    const imgs = GIFS.map((src, i) => {
+      const el = document.createElement('img');
+      el.src = src.trim();
+      if (i === 0) el.classList.add('active');
+      el.addEventListener('error', () => el.remove());
+      car.appendChild(el);
+      return el;
+    });
+    let idx = 0;
+    if (imgs.length > 1) {
+      setInterval(() => {
+        const a = imgs[idx];
+        idx = (idx + 1) % imgs.length;
+        const b = imgs[idx];
+        a && a.classList.remove('active');
+        b && b.classList.add('active');
+      }, INTERVAL * 1000);
+    }
 
-    // ---------- 2) Temp handling (pre-register handler before CAM injects) ----------
-    const tempEl = document.getElementById('temp');
+    // ---------- 2) Temp handling (with NZXT bridge) ----------
+    const tempVal = document.getElementById('tempVal');
+    const tick = document.getElementById('tick');
     const statEl = document.getElementById('nzxtStatus');
-
-    // Simple 5-sample moving average for stability
-    const buf=[]; const N=5;
-    const avgPush = x => { if(typeof x!=='number'||!isFinite(x)) return null; buf.push(x);
-      if(buf.length>N) buf.shift(); return buf.reduce((a,b)=>a+b,0)/buf.length; };
-
-    const pickTempC = d => {
-      const c = [ d?.cpu?.package?.temperature, d?.cpu?.temperature,
-                  d?.cpus?.[0]?.package?.temperature, d?.cpus?.[0]?.temperature ];
-      for (const v of c) if (typeof v==='number' && isFinite(v)) return v;
+    const buf = [];
+    const N = 5;
+    const avgPush = (x) => {
+      if (typeof x !== 'number' || !isFinite(x)) return null;
+      buf.push(x);
+      if (buf.length > N) buf.shift();
+      return buf.reduce((a, b) => a + b, 0) / buf.length;
+    };
+    const pickTempC = (d) => {
+      const c = [
+        d?.cpu?.package?.temperature,
+        d?.cpu?.temperature,
+        d?.cpus?.[0]?.package?.temperature,
+        d?.cpus?.[0]?.temperature,
+      ];
+      for (const v of c) if (typeof v === 'number' && isFinite(v)) return v;
       return null;
     };
 
-    function onData(data){
-      // Called by CAM every second when hooked up
-      if (!data || typeof data!=='object') { statEl.textContent = 'Received empty data'; return; }
+    function onData(data) {
+      if (!data || typeof data !== 'object') {
+        statEl.textContent = 'Received empty data';
+        return;
+      }
       const avg = avgPush(pickTempC(data));
-      tempEl.textContent = (avg==null) ? '--°C' : `${Math.round(avg)}\u00B0C`;
+      tempVal.textContent = avg == null ? '--°C' : `${Math.round(avg)}\u00B0C`;
+      tick.style.opacity = tick.style.opacity === '0.35' ? '0.85' : '0.35';
       statEl.textContent = 'Receiving NZXT data';
     }
 
-    // **Key step**: Pre-register *before* injection so CAM starts streaming.
-    // v1 path
+    // Pre-register handlers before CAM injects
     window.nzxt = window.nzxt || {};
     window.nzxt.v1 = window.nzxt.v1 || {};
     window.nzxt.v1.onMonitoringDataUpdate = onData;
-    // legacy global path (older docs say "on window")
-    // (Safe no-op if CAM ignores it.)
     if (!('onMonitoringDataUpdate' in window)) {
       window.onMonitoringDataUpdate = onData;
     }
 
-    // Show a short status while waiting
-    const hasKraken = /\bkraken=1\b/.test(location.search);
-    statEl.textContent = hasKraken ? 'Waiting for NZXT on Kraken view…' : 'Waiting for NZXT…';
-
-    // Optional: try to attach again if CAM overwrites our function later
+    // Reattach if CAM overwrites after load
     window.addEventListener('nzxt', () => {
-      // If CAM redefines the object, restore our handler
       try {
-        if (window.nzxt?.v1) window.nzxt.v1.onMonitoringDataUpdate = onData;
+        if (window.nzxt?.v1)
+          window.nzxt.v1.onMonitoringDataUpdate = onData;
       } catch {}
     });
   </script>
