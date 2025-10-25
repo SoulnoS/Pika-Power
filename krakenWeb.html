@@ -3,54 +3,45 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Kraken GIF Carousel + CPU Temp</title>
+<title>Kraken — Simple Temp + Optional GIFs</title>
 <style>
-:root { --overlay-bg: rgba(0,0,0,0.55); --overlay-radius: 12px; --font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
-html, body { margin: 0; height: 100%; width: 100%; background: #000; color: #fff; font-family: var(--font); }
+:root { --font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial; }
+html, body { margin:0; height:100%; width:100%; background:#000; color:#fff; font-family:var(--font); }
+.stage { position:relative; height:100vh; width:100vw; overflow:hidden; }
+/* Base like Bruno's: no masks, no fancy effects */
+.bg { position:absolute; inset:0; background: radial-gradient(120% 120% at 50% 50%, #0b0b0b 0%, #000 70%); }
+.carousel { position:absolute; inset:0; display:grid; place-items:center; }
+.carousel img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .4s ease; }
+.carousel img.active { opacity:1; }
 
 
-.stage { position: relative; height: 100vh; width: 100vw; overflow: hidden; display: grid; place-items: center; }
-
-
-.carousel { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
-.carousel img { position: absolute; max-width: none; opacity: 0; transition: opacity 500ms ease-in-out; width: 100vmin; height: 100vmin; object-fit: cover; object-position: center center; -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 68%, transparent 72%); mask-image: radial-gradient(circle at 50% 50%, #000 68%, transparent 72%); }
-.carousel img.active { opacity: 1; }
-
-
-/* Temp overlay: bottom-center (90%) */
-.overlay { position: absolute; top: 90%; left: 50%; transform: translate(-50%, -50%); padding: 12px 20px; background: var(--overlay-bg); backdrop-filter: blur(4px); border-radius: var(--overlay-radius); border: 1px solid rgba(255,255,255,0.15); font-weight: 600; letter-spacing: 0.3px; display: inline-flex; align-items: baseline; gap: 8px; z-index: 5; }
-.overlay .value { font-size: 48px; line-height: 1; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #9ef89e; opacity: .85; align-self: center; }
-
-
-.dev-banner { position: absolute; left: 10px; top: 10px; padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,.08); border: 1px dashed rgba(255,255,255,.25); border-radius: 8px; opacity: .9; }
+.temp { position:absolute; left:50%; top:88%; transform:translate(-50%,-50%); font-weight:800; font-size:64px; letter-spacing:.5px; text-shadow:0 0 10px rgba(0,0,0,.6); }
+.badge { position:absolute; left:10px; top:10px; padding:6px 10px; font-size:12px; border-radius:8px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25); }
+.live { background:rgba(0,128,0,.2); border-color:rgba(0,255,0,.35); }
 </style>
 </head>
 <body>
 <div class="stage">
-<div id="banner" class="dev-banner" hidden>Preview mode — open from NZXT CAM Web Integration for live temps.</div>
+<div class="bg"></div>
 <div id="carousel" class="carousel"></div>
-<div class="overlay" id="temp"><span class="value" id="tempVal">--°C</span><span class="dot" id="tick"></span></div>
+<div id="badge" class="badge">PREVIEW</div>
+<div id="temp" class="temp">--°C</div>
 </div>
 
 
 <script>
-// ---------- 1) Playlist (final story order) & timing ----------
-const params = new URLSearchParams(window.location.search);
-const urlList = params.get('gifs');
-const GIFS = urlList ? urlList.split(',') : [
-// 🌅 Morning
+// -------------------- Config (optional) --------------------
+const q = new URLSearchParams(location.search);
+const INTERVAL = Math.max(1, parseInt(q.get('interval') || '15', 10));
+const GIFS = (q.get('gifs') ? q.get('gifs').split(',') : [
 'https://media1.tenor.com/m/38VcHi-BBD0AAAAd/pikachu-sleep.gif',
 'https://media1.tenor.com/m/3QHdpH8eVjIAAAAd/pikachu-drinking.gif',
 'https://media1.tenor.com/m/vUE_peSWrrwAAAAd/pikahappy.gif',
-// ☀️ Midday
 'https://media1.tenor.com/m/ra-p_cC3O9YAAAAd/pikachu-pokemon.gif',
 'https://media1.tenor.com/m/pukZKNfe3JAAAAAd/laughing-pikachu.gif',
 'https://media1.tenor.com/m/ryHmkofn-4kAAAAd/pikachu-pokemon.gif',
-// 🌩️ Afternoon
 'https://media1.tenor.com/m/JQkWX-lI-b0AAAAd/pokemon-pikachu.gif',
 'https://media1.tenor.com/m/A4qhcUU5PQMAAAAC/pikachu-screaming.gif',
-// 🌇 Evening (Giphy)
 'https://media.giphy.com/media/ubEwB9ZVYtfyg/giphy.gif',
 'https://media.giphy.com/media/qgkrtsDy4MhLq/giphy.gif',
 'https://media.giphy.com/media/12mwXD0A6E87L2/giphy.gif',
@@ -60,61 +51,49 @@ const GIFS = urlList ? urlList.split(',') : [
 'https://media.giphy.com/media/slVWEctHZKvWU/giphy.gif',
 'https://media.giphy.com/media/Era7aEMrYBvyg/giphy.gif',
 'https://media.giphy.com/media/dJYoOVAWf2QkU/giphy.gif'
-];
+]).filter(Boolean);
 
 
-const carouselEl = document.getElementById('carousel');
-const images = GIFS.map((src, i) => {
-const img = document.createElement('img');
-img.src = src.trim();
-img.referrerPolicy = 'no-referrer';
-if (i === 0) img.classList.add('active');
-img.addEventListener('error', () => {
-const b = document.getElementById('banner');
-b.hidden = false; b.textContent = 'One or more GIFs failed to load. Check URLs or try in a normal browser to verify.';
-img.style.display = 'none';
-});
-carouselEl.appendChild(img); return img;
-});
+// -------------------- Simple carousel (optional) --------------------
+const car = document.getElementById('carousel');
+const imgs = GIFS.map((src,i)=>{ const el=document.createElement('img'); el.src=src.trim(); if(i===0) el.classList.add('active'); el.addEventListener('error',()=>{ el.remove(); }); car.appendChild(el); return el; });
+let idx=0; if(imgs.length>1){ setInterval(()=>{ const a=imgs[idx]; idx=(idx+1)%imgs.length; const b=imgs[idx]; a&&a.classList.remove('active'); b&&b.classList.add('active'); }, INTERVAL*1000); }
 
 
-let idx = 0;
-const intervalSec = Math.max(1, parseInt(params.get('interval') || '15', 10));
-setInterval(() => {
-if (!images.length) return;
-const prev = images[idx];
-idx = (idx + 1) % images.length;
-const next = images[idx];
-if (prev) prev.classList.remove('active');
-if (next) next.classList.add('active');
-}, intervalSec * 1000);
+// -------------------- Temp (Bruno-style minimal) --------------------
+const badge = document.getElementById('badge');
+const tempEl = document.getElementById('temp');
 
 
-// ---------- 2) Temperature (simple & stable) ----------
-const tempVal = document.getElementById('tempVal');
-const tick = document.getElementById('tick');
-// Detect NZXT API (v1 or legacy)
-const nzxtApi = (window.nzxt && (window.nzxt.v1 || window.nzxt)) || null;
-const isNZXT = !!nzxtApi;
+// Detect NZXT API (v1 preferred, fallback legacy)
+const api = (window.nzxt && (window.nzxt.v1 || window.nzxt)) || null;
+if(!api){ badge.textContent='PREVIEW'; } else { badge.textContent='LIVE'; badge.classList.add('live'); }
 
 
-if (!isNZXT) {
-// Not in CAM: show a clear message and stop.
-document.getElementById('banner').hidden = false;
-tempVal.textContent = '--°C';
-} else {
-// Moving average (10 samples) for smoothness
-const buffer = []; const N = 10;
-const pushAvg = (x) => { if (typeof x !== 'number' || !isFinite(x)) return null; buffer.push(x); if (buffer.length > N) buffer.shift(); return buffer.reduce((a,b)=>a+b,0)/buffer.length; };
+// CPU package °C picker
+function pickTempC(d){
+const c = [ d?.cpu?.package?.temperature, d?.cpu?.temperature, d?.cpus?.[0]?.package?.temperature, d?.cpus?.[0]?.temperature ];
+for(const v of c){ if(typeof v==='number' && isFinite(v)) return v; }
+return null;
+}
 
 
-const pickTemp = (d) => {
-const cands = [ d?.cpu?.package?.temperature, d?.cpu?.temperature, d?.cpus?.[0]?.package?.temperature, d?.cpus?.[0]?.temperature ];
-for (const v of cands) if (typeof v === 'number' && isFinite(v)) return v; return null;
+// Moving average (5 like many examples)
+const buf=[]; const N=5; function avgPush(x){ if(typeof x!=='number'||!isFinite(x)) return null; buf.push(x); if(buf.length>N) buf.shift(); return buf.reduce((a,b)=>a+b,0)/buf.length; }
+
+
+if(api && typeof api.onMonitoringDataUpdate==='function'){
+api.onMonitoringDataUpdate = (data)=>{
+const raw = pickTempC(data);
+const avg = avgPush(raw);
+tempEl.textContent = (avg==null)? '--°C' : `${Math.round(avg)}\u00B0C`;
 };
-
-
-const attach = (api) => {
-if (api && typeof api.onMonitoringDataUpdate === 'function') {
-api.onMonitoringDataUpdate = (data) => {
+} else if(api && api.v1 && typeof api.v1.onMonitoringDataUpdate==='function'){
+api.v1.onMonitoringDataUpdate = (data)=>{
+const raw = pickTempC(data);
+const avg = avgPush(raw);
+tempEl.textContent = (avg==null)? '--°C' : `${Math.round(avg)}\u00B0C`;
+};
+} else {
+// No API available (normal browser tab)
 </html>
