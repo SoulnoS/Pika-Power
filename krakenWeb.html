@@ -7,7 +7,9 @@
   <style>
     :root { --overlay-bg: rgba(0,0,0,0.55); --overlay-radius: 12px; --font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
     html, body { margin: 0; height: 100%; width: 100%; background: #000; color: #fff; font-family: var(--font); }
+
     .stage { position: relative; height: 100vh; width: 100vw; overflow: hidden; display: grid; place-items: center; }
+
     .carousel { position: absolute; inset: 0; display: grid; place-items: center; background: #000; }
     .carousel img { position: absolute; max-width: none; opacity: 0; transition: opacity 500ms ease-in-out; width: 100vmin; height: 100vmin; object-fit: cover; object-position: center center; -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 68%, transparent 72%); mask-image: radial-gradient(circle at 50% 50%, #000 68%, transparent 72%); }
     .carousel img.active { opacity: 1; }
@@ -18,23 +20,17 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ef89e; opacity: .85; align-self: center; }
 
     .dev-banner { position: absolute; left: 10px; top: 10px; padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,.08); border: 1px dashed rgba(255,255,255,.25); border-radius: 8px; opacity: .9; }
-    #status { border-style: solid; border-width: 1px; }
-    #status.live { background: rgba(0,128,0,.20); border-color: rgba(0,255,0,.35); }
-    #status.preview { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.25); }
   </style>
 </head>
 <body>
   <div class="stage">
-    <div id="banner" class="dev-banner" hidden>Preview mode — open this from NZXT CAM Web Integration for live temps.</div>
-    <div id="status" class="dev-banner" style="top: 44px;">PREVIEW</div>
+    <div id="banner" class="dev-banner" hidden>Preview mode — open from NZXT CAM Web Integration for live temps.</div>
     <div id="carousel" class="carousel"></div>
     <div class="overlay" id="temp"><span class="value" id="tempVal">--°C</span><span class="dot" id="tick"></span></div>
   </div>
 
   <script>
-    // -----------------------------
-    // 1) Playlist (final story order) & timing
-    // -----------------------------
+    // ---------- 1) Playlist (final story order) & timing ----------
     const params = new URLSearchParams(window.location.search);
     const urlList = params.get('gifs');
     const GIFS = urlList ? urlList.split(',') : [
@@ -50,15 +46,15 @@
       'https://media1.tenor.com/m/JQkWX-lI-b0AAAAd/pokemon-pikachu.gif',
       'https://media1.tenor.com/m/A4qhcUU5PQMAAAAC/pikachu-screaming.gif',
       // 🌇 Evening (Giphy)
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3MTg1amp2eTN5aTFnYWY2dnJneWNkNDducHl6bnd6OHFnNDEyazNocCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/ubEwB9ZVYtfyg/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3MTg1amp2eTN5aTFnYWY2dnJneWNkNDducHl6bnd6OHFnNDEyazNocCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/qgkrtsDy4MhLq/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3eDBpYmhqaXljdzhwMmF4c21vNWUyeDkxbXZ6ajZqc2hyajY5aTExMSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/12mwXD0A6E87L2/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3cDdwNWpwMDdyaDMxM2gycW4xc2NybXQ3YWtjMTAxZ3lqYzAyNnV1MCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/7SF5scGB2AFrgsXP63/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3eXZ2aThhbXg3ejMwYmd2OGx6bnF0cDdicDdkNDZ3d3k0czIyZW1raSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/dI4C6ZhNb3FBK/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZXcweDE2OG8xaWppN2doZ28xcW03dXplOXAyeXo5cTU3YmZ6bGc5byZlcD12MV9naWZzX3NlYXJjaCZjdD1n/SeysxkSfenHY4/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3ZXcweDE2OG8xaWppN2doZ28xcW03dXplOXAyeXo5cTU3YmZ6bGc5byZlcD12MV9naWZzX3NlYXJjaCZjdD1n/slVWEctHZKvWU/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPWVjZjA1ZTQ3MTg1amp2eTN5aTFnYWY2dnJneWNkNDducHl6bnd6OHFnNDEyazNocCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/Era7aEMrYBvyg/giphy.gif',
-      'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExczl3cW1pYmtqaGFjNnEwZGxhZXFpcGVkenRrZm5zZ3JoczN5YnRvNCZlcD12MV9naWZzX3NlYXJjaCZjdD1n/dJYoOVAWf2QkU/giphy.gif'
+      'https://media.giphy.com/media/ubEwB9ZVYtfyg/giphy.gif',
+      'https://media.giphy.com/media/qgkrtsDy4MhLq/giphy.gif',
+      'https://media.giphy.com/media/12mwXD0A6E87L2/giphy.gif',
+      'https://media.giphy.com/media/7SF5scGB2AFrgsXP63/giphy.gif',
+      'https://media.giphy.com/media/dI4C6ZhNb3FBK/giphy.gif',
+      'https://media.giphy.com/media/SeysxkSfenHY4/giphy.gif',
+      'https://media.giphy.com/media/slVWEctHZKvWU/giphy.gif',
+      'https://media.giphy.com/media/Era7aEMrYBvyg/giphy.gif',
+      'https://media.giphy.com/media/dJYoOVAWf2QkU/giphy.gif'
     ];
 
     const carouselEl = document.getElementById('carousel');
@@ -69,7 +65,7 @@
       if (i === 0) img.classList.add('active');
       img.addEventListener('error', () => {
         const b = document.getElementById('banner');
-        b.hidden = false; b.textContent = 'Some items failed to load (check GIF URLs).';
+        b.hidden = false; b.textContent = 'One or more GIFs failed to load. Check URLs or try in a normal browser to verify.';
         img.style.display = 'none';
       });
       carouselEl.appendChild(img); return img;
@@ -78,6 +74,7 @@
     let idx = 0;
     const intervalSec = Math.max(1, parseInt(params.get('interval') || '15', 10));
     setInterval(() => {
+      if (!images.length) return;
       const prev = images[idx];
       idx = (idx + 1) % images.length;
       const next = images[idx];
@@ -85,59 +82,37 @@
       if (next) next.classList.add('active');
     }, intervalSec * 1000);
 
-    // -----------------------------
-    // 2) Temperature (simplified, robust)
-    // -----------------------------
+    // ---------- 2) Temperature (simple & stable) ----------
     const tempVal = document.getElementById('tempVal');
     const tick = document.getElementById('tick');
-    const isNZXT = typeof window.nzxt !== 'undefined' && window.nzxt?.v1;
-    const statusEl = document.getElementById('status');
+    const isNZXT = (typeof window.nzxt !== 'undefined' && window.nzxt && window.nzxt.v1);
 
-    // Only show preview banner if not inside CAM
     if (!isNZXT) {
+      // Not in CAM: show a clear message and stop.
       document.getElementById('banner').hidden = false;
-      statusEl.textContent = 'PREVIEW';
-      statusEl.classList.remove('live');
-      statusEl.classList.add('preview');
-      tempVal.textContent = '--°C';
+      tempVal.textContent = '--\u00B0C';
     } else {
-      statusEl.textContent = 'LIVE';
-      statusEl.classList.remove('preview');
-      statusEl.classList.add('live');
-    }
+      // Moving average (10 samples) for smoothness
+      const buffer = []; const N = 10;
+      const pushAvg = (x) => { if (typeof x !== 'number' || !isFinite(x)) return null; buffer.push(x); if (buffer.length > N) buffer.shift(); return buffer.reduce((a,b)=>a+b,0)/buffer.length; };
 
-    // Helper: pick first numeric CPU package °C we can find
-    function getCpuPackageTempC(data) {
-      const candidates = [
-        data?.cpu?.package?.temperature,
-        data?.cpu?.temperature,
-        data?.cpus?.[0]?.package?.temperature,
-        data?.cpus?.[0]?.temperature,
-      ];
-      for (const v of candidates) if (typeof v === 'number' && isFinite(v)) return v;
-      return null;
-    }
-
-    // Simple moving average for stability
-    const buffer = []; const BUFFER_SIZE = 10;
-    function pushAndAvg(x) {
-      if (typeof x !== 'number' || !isFinite(x)) return null;
-      buffer.push(x); if (buffer.length > BUFFER_SIZE) buffer.shift();
-      return buffer.reduce((a,b)=>a+b,0) / buffer.length;
-    }
-
-    if (isNZXT) {
-      window.nzxt.v1.onMonitoringDataUpdate = (data) => {
-        const raw = getCpuPackageTempC(data);
-        const avg = pushAndAvg(raw);
-        tempVal.textContent = (avg == null) ? '--°C' : `${Math.round(avg)}°C`;
-        tick.style.opacity = (tick.style.opacity === '0.35') ? '0.85' : '0.35';
+      const pickTemp = (d) => {
+        const cands = [ d?.cpu?.package?.temperature, d?.cpu?.temperature, d?.cpus?.[0]?.package?.temperature, d?.cpus?.[0]?.temperature ];
+        for (const v of cands) if (typeof v === 'number' && isFinite(v)) return v; return null;
       };
-    }\u00B0C`;
-        tick.style.opacity = (tick.style.opacity === '0.35') ? '0.85' : '0.35';
-      };
+
+      try {
+        window.nzxt.v1.onMonitoringDataUpdate = (data) => {
+          const raw = pickTemp(data);
+          const avg = pushAvg(raw);
+          tempVal.textContent = (avg == null) ? '--\u00B0C' : `${Math.round(avg)}\u00B0C`;
+          tick.style.opacity = (tick.style.opacity === '0.35') ? '0.85' : '0.35';
+        };
+      } catch (e) {
+        document.getElementById('banner').hidden = false;
+        document.getElementById('banner').textContent = 'NZXT telemetry handler failed to attach.';
+      }
     }
   </script>
 </body>
 </html>
-
