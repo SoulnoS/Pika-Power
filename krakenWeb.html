@@ -18,11 +18,15 @@
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ef89e; opacity: .85; align-self: center; }
 
     .dev-banner { position: absolute; left: 10px; top: 10px; padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,.08); border: 1px dashed rgba(255,255,255,.25); border-radius: 8px; opacity: .9; }
+    #status { border-style: solid; border-width: 1px; }
+    #status.live { background: rgba(0,128,0,.20); border-color: rgba(0,255,0,.35); }
+    #status.preview { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.25); }
   </style>
 </head>
 <body>
   <div class="stage">
     <div id="banner" class="dev-banner" hidden>Preview mode — open this from NZXT CAM Web Integration for live temps.</div>
+    <div id="status" class="dev-banner" style="top: 44px;">PREVIEW</div>
     <div id="carousel" class="carousel"></div>
     <div class="overlay" id="temp"><span class="value" id="tempVal">--°C</span><span class="dot" id="tick"></span></div>
   </div>
@@ -87,11 +91,19 @@
     const tempVal = document.getElementById('tempVal');
     const tick = document.getElementById('tick');
     const isNZXT = typeof window.nzxt !== 'undefined' && window.nzxt?.v1;
+    const statusEl = document.getElementById('status');
 
     // Only show preview banner if not inside CAM
     if (!isNZXT) {
       document.getElementById('banner').hidden = false;
+      statusEl.textContent = 'PREVIEW';
+      statusEl.classList.remove('live');
+      statusEl.classList.add('preview');
       tempVal.textContent = '--°C';
+    } else {
+      statusEl.textContent = 'LIVE';
+      statusEl.classList.remove('preview');
+      statusEl.classList.add('live');
     }
 
     // Helper: pick first numeric CPU package °C we can find
@@ -118,10 +130,14 @@
       window.nzxt.v1.onMonitoringDataUpdate = (data) => {
         const raw = getCpuPackageTempC(data);
         const avg = pushAndAvg(raw);
-        tempVal.textContent = (avg == null) ? '--°C' : `${Math.round(avg)}\u00B0C`;
+        tempVal.textContent = (avg == null) ? '--°C' : `${Math.round(avg)}°C`;
+        tick.style.opacity = (tick.style.opacity === '0.35') ? '0.85' : '0.35';
+      };
+    }\u00B0C`;
         tick.style.opacity = (tick.style.opacity === '0.35') ? '0.85' : '0.35';
       };
     }
   </script>
 </body>
 </html>
+
