@@ -1,114 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Kraken — Minimal Temp + GIFs (NZXT-friendly)</title>
-<!-- Hint for CAM injector (some builds look for this) -->
-<meta name="nzxt-version" content="1" />
-<style>
-:root { --font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial; }
-html, body { margin:0; height:100%; width:100%; background:#000; color:#fff; font-family:var(--font); }
-.stage { position:relative; height:100vh; width:100vw; overflow:hidden; }
-.bg { position:absolute; inset:0; background: radial-gradient(120% 120% at 50% 50%, #0b0b0b 0%, #000 70%); }
-.carousel { position:absolute; inset:0; display:grid; place-items:center; }
-.carousel img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .4s ease; }
-.carousel img.active { opacity:1; }
-
-
-.temp { position:absolute; left:50%; top:90%; transform:translate(-50%,-50%); font-weight:800; font-size:64px; letter-spacing:.5px; text-shadow:0 0 10px rgba(0,0,0,.6); }
-.badge { position:absolute; left:10px; top:10px; padding:6px 10px; font-size:12px; border-radius:8px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.25); }
-.live { background:rgba(0,128,0,.20); border-color:rgba(0,255,0,.35); }
-.diag { position:absolute; left:10px; top:46px; font-size:11px; opacity:.9; white-space:pre-wrap; line-height:1.25; max-width:90vw; }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="nzxt-version" content="1" />
+  <title>Pika Power — NZXT Kraken</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial;
+      overflow: hidden;
+    }
+    .carousel {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at 50% 50%, #0b0b0b 0%, #000 70%);
+    }
+    .carousel img {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .carousel img.active {
+      opacity: 1;
+    }
+    .temp {
+      position: absolute;
+      left: 50%;
+      top: 90%;
+      transform: translate(-50%, -50%);
+      font-size: 64px;
+      font-weight: 800;
+      text-shadow: 0 0 10px rgba(0,0,0,.6);
+    }
+  </style>
 </head>
 <body>
-<div class="stage">
-<div class="bg"></div>
-<div id="carousel" class="carousel"></div>
-<div id="badge" class="badge">PREVIEW</div>
-<div id="diag" class="diag" hidden></div>
-<div id="temp" class="temp">--°C</div>
-</div>
+  <div class="carousel" id="carousel"></div>
+  <div class="temp" id="temp">--°C</div>
 
+  <script>
+    // Use Bruno's structure with your GIFs
+    const params = new URLSearchParams(location.search);
+    const interval = Math.max(1, parseInt(params.get('interval') || '15', 10));
+    const GIFS = (params.get('gifs') ? params.get('gifs').split(',') : [
+      'https://media1.tenor.com/m/38VcHi-BBD0AAAAd/pikachu-sleep.gif',
+      'https://media1.tenor.com/m/3QHdpH8eVjIAAAAd/pikachu-drinking.gif',
+      'https://media1.tenor.com/m/vUE_peSWrrwAAAAd/pikahappy.gif',
+      'https://media1.tenor.com/m/ra-p_cC3O9YAAAAd/pikachu-pokemon.gif',
+      'https://media1.tenor.com/m/pukZKNfe3JAAAAAd/laughing-pikachu.gif',
+      'https://media1.tenor.com/m/ryHmkofn-4kAAAAd/pikachu-pokemon.gif',
+      'https://media1.tenor.com/m/JQkWX-lI-b0AAAAd/pokemon-pikachu.gif',
+      'https://media1.tenor.com/m/A4qhcUU5PQMAAAAC/pikachu-screaming.gif',
+      'https://media.giphy.com/media/ubEwB9ZVYtfyg/giphy.gif',
+      'https://media.giphy.com/media/qgkrtsDy4MhLq/giphy.gif',
+      'https://media.giphy.com/media/12mwXD0A6E87L2/giphy.gif',
+      'https://media.giphy.com/media/7SF5scGB2AFrgsXP63/giphy.gif',
+      'https://media.giphy.com/media/dI4C6ZhNb3FBK/giphy.gif',
+      'https://media.giphy.com/media/SeysxkSfenHY4/giphy.gif',
+      'https://media.giphy.com/media/slVWEctHZKvWU/giphy.gif',
+      'https://media.giphy.com/media/Era7aEMrYBvyg/giphy.gif',
+      'https://media.giphy.com/media/dJYoOVAWf2QkU/giphy.gif'
+    ]).filter(Boolean);
 
-<script>
-(function(){
-// -------------------- Query params --------------------
-const q = new URLSearchParams(location.search);
-const INTERVAL = Math.max(1, parseInt(q.get('interval') || '15', 10));
-const DIAG = q.get('diag') === '1';
-const GIFS = (q.get('gifs') ? q.get('gifs').split(',') : [
-'https://media1.tenor.com/m/38VcHi-BBD0AAAAd/pikachu-sleep.gif',
-'https://media1.tenor.com/m/3QHdpH8eVjIAAAAd/pikachu-drinking.gif',
-'https://media1.tenor.com/m/vUE_peSWrrwAAAAd/pikahappy.gif',
-'https://media1.tenor.com/m/ra-p_cC3O9YAAAAd/pikachu-pokemon.gif',
-'https://media1.tenor.com/m/pukZKNfe3JAAAAAd/laughing-pikachu.gif',
-'https://media1.tenor.com/m/ryHmkofn-4kAAAAd/pikachu-pokemon.gif',
-'https://media1.tenor.com/m/JQkWX-lI-b0AAAAd/pokemon-pikachu.gif',
-'https://media1.tenor.com/m/A4qhcUU5PQMAAAAC/pikachu-screaming.gif',
-'https://media.giphy.com/media/ubEwB9ZVYtfyg/giphy.gif',
-'https://media.giphy.com/media/qgkrtsDy4MhLq/giphy.gif',
-'https://media.giphy.com/media/12mwXD0A6E87L2/giphy.gif',
-'https://media.giphy.com/media/7SF5scGB2AFrgsXP63/giphy.gif',
-'https://media.giphy.com/media/dI4C6ZhNb3FBK/giphy.gif',
-'https://media.giphy.com/media/SeysxkSfenHY4/giphy.gif',
-'https://media.giphy.com/media/slVWEctHZKvWU/giphy.gif',
-'https://media.giphy.com/media/Era7aEMrYBvyg/giphy.gif',
-'https://media.giphy.com/media/dJYoOVAWf2QkU/giphy.gif'
-]).filter(Boolean);
+    const carousel = document.getElementById('carousel');
+    const tempEl = document.getElementById('temp');
 
+    const imgs = GIFS.map((src, i) => {
+      const img = document.createElement('img');
+      img.src = src.trim();
+      if (i === 0) img.classList.add('active');
+      img.addEventListener('error', () => img.remove());
+      carousel.appendChild(img);
+      return img;
+    });
 
-// -------------------- Carousel --------------------
-const car = document.getElementById('carousel');
-const imgs = GIFS.map((src,i)=>{ const el=document.createElement('img'); el.src=src.trim(); if(i===0) el.classList.add('active'); el.addEventListener('error',()=>{ el.remove(); }); car.appendChild(el); return el; });
-let idx=0; if(imgs.length>1){ setInterval(()=>{ const a=imgs[idx]; idx=(idx+1)%imgs.length; const b=imgs[idx]; a&&a.classList.remove('active'); b&&b.classList.add('active'); }, INTERVAL*1000); }
+    let index = 0;
+    if (imgs.length > 1) {
+      setInterval(() => {
+        const prev = imgs[index];
+        index = (index + 1) % imgs.length;
+        const next = imgs[index];
+        prev && prev.classList.remove('active');
+        next && next.classList.add('active');
+      }, interval * 1000);
+    }
 
+    // --- NZXT Telemetry (exact structure from Bruno) ---
+    const avgBuf = [];
+    const pushAvg = (x) => {
+      if (typeof x !== 'number' || !isFinite(x)) return null;
+      avgBuf.push(x);
+      if (avgBuf.length > 5) avgBuf.shift();
+      return avgBuf.reduce((a, b) => a + b, 0) / avgBuf.length;
+    };
 
-// -------------------- Temp with NZXT-friendly attach --------------------
-const badge = document.getElementById('badge');
-const tempEl = document.getElementById('temp');
-const diagEl = document.getElementById('diag');
-if (DIAG) diagEl.hidden = false;
+    const pickTemp = (data) => {
+      const paths = [data?.cpu?.package?.temperature, data?.cpu?.temperature, data?.cpus?.[0]?.package?.temperature, data?.cpus?.[0]?.temperature];
+      for (const v of paths) if (typeof v === 'number' && isFinite(v)) return v;
+      return null;
+    };
 
+    function onData(data) {
+      const raw = pickTemp(data);
+      const avg = pushAvg(raw);
+      tempEl.textContent = avg == null ? '--°C' : `${Math.round(avg)}\u00B0C`;
+    }
 
-function pickTempC(d){
-const c = [ d?.cpu?.package?.temperature, d?.cpu?.temperature, d?.cpus?.[0]?.package?.temperature, d?.cpus?.[0]?.temperature ];
-for(const v of c){ if(typeof v==='number' && isFinite(v)) return v; }
-return null;
-}
-const buf=[]; const N=5; function avgPush(x){ if(typeof x!=='number'||!isFinite(x)) return null; buf.push(x); if(buf.length>N) buf.shift(); return buf.reduce((a,b)=>a+b,0)/buf.length; }
+    function attachNZXT() {
+      if (window.nzxt?.v1 && typeof window.nzxt.v1.onMonitoringDataUpdate === 'function') {
+        window.nzxt.v1.onMonitoringDataUpdate = onData;
+        return true;
+      }
+      if (window.nzxt && typeof window.nzxt.onMonitoringDataUpdate === 'function') {
+        window.nzxt.onMonitoringDataUpdate = onData;
+        return true;
+      }
+      return false;
+    }
 
+    window.addEventListener('nzxt', attachNZXT);
+    window.addEventListener('DOMContentLoaded', attachNZXT);
 
-function log(msg){ if(!DIAG) return; diagEl.textContent = `${new Date().toLocaleTimeString()}\n${msg}`; }
-
-
-function attach(api, label){
-if(!api || typeof api.onMonitoringDataUpdate!=='function') return false;
-api.onMonitoringDataUpdate = (data)=>{
-const raw = pickTempC(data);
-const avg = avgPush(raw);
-tempEl.textContent = (avg==null)? '--°C' : `${Math.round(avg)}\u00B0C`;
-if (DIAG) log(`${label}: sample keys → ${Object.keys(data||{}).join(', ')}`);
-};
-badge.textContent='LIVE'; badge.classList.add('live');
-if (DIAG) log(`Attached: ${label}`);
-return true;
-}
-
-
-function tryAttach(){
-if (window.nzxt?.v1 && attach(window.nzxt.v1, 'v1')) return true;
-if (window.nzxt && attach(window.nzxt, 'legacy')) return true;
-return false;
-}
-
-
-// Attach as late as needed
-window.addEventListener('DOMContentLoaded', () => { tryAttach(); });
-let tries=0; const maxTries=250; // ~50s @ 200ms
-const t = setInterval(()=>{ if(tryAttach() || ++tries>maxTries){ clearInterval(t); } }, 200);
-})();
-</script>
+    let tries = 0;
+    const poll = setInterval(() => {
+      if (attachNZXT() || tries++ > 250) clearInterval(poll);
+    }, 200);
+  </script>
 </body>
 </html>
